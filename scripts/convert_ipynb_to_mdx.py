@@ -199,7 +199,7 @@ def create_buttons(
 def handle_images_found_in_markdown(
     markdown: str,
     new_img_dir: Path,
-    lib_dir: Path,
+    nb_path: Path,
 ) -> str:
     """
     Update image paths in the Markdown, and copy the image to the docs location.
@@ -219,7 +219,8 @@ def handle_images_found_in_markdown(
         markdown (str): Markdown where we look for Markdown flavored images.
         new_img_dir (Path): Path where images are copied to for display in the
             MDX file.
-        lib_dir (Path): The location for the Bean Machine repo.
+        lib_dir (Path): The location for the repo.
+        nb_path (Path): The location for the notebook.
 
     Returns:
         str: The original Markdown with new paths for images.
@@ -250,11 +251,11 @@ def handle_images_found_in_markdown(
 
         # Copy the original image to the new location.
         if old_path.exists():
+            # resolves if an absolute path is used
             old_img_path = old_path
         else:
-            # Here we assume the original image exists in the same directory as the
-            # notebook, which should be in the tutorials folder of the library.
-            old_img_path = (lib_dir / "tutorials" / old_path).resolve()
+            # fall back to path relative to the notebook
+            old_img_path = (nb_path.parent / old_path).resolve()
         new_img_path = str(new_img_dir / name)
         shutil.copy(str(old_img_path), new_img_path)
 
@@ -359,7 +360,7 @@ def get_source(cell: NotebookNode) -> str:
 def handle_markdown_cell(
     cell: NotebookNode,
     new_img_dir: Path,
-    lib_dir: Path,
+    nb_path: Path,
 ) -> str:
     """
     Handle the given Jupyter Markdown cell and convert it to MDX.
@@ -368,17 +369,15 @@ def handle_markdown_cell(
         cell (NotebookNode): Jupyter Markdown cell object.
         new_img_dir (Path): Path where images are copied to for display in the
             Markdown cell.
-        lib_dir (Path): The location for the Bean Machine library.
+        lib_dir (Path): The location for the library.
+        nb_path (Path): The location for the notebook.
 
     Returns:
         str: Transformed Markdown object suitable for inclusion in MDX.
     """
     markdown = get_source(cell)
 
-    # Update image paths in the Markdown and copy them to the Markdown tutorials folder.
-    # Skip - Our images are base64 encoded, so we don't need to copy them to the docs
-    # folder.
-    # markdown = handle_images_found_in_markdown(markdown, new_img_dir, lib_dir)
+    markdown = handle_image_paths_found_in_markdown(markdown, new_img_dir, nb_path)
 
     markdown = sanitize_mdx(markdown)
     mdx = mdformat.text(markdown, options={"wrap": 88}, extensions={"myst"})
@@ -880,7 +879,7 @@ def transform_notebook(path: Path, nb_metadata: object) -> str:
 
         # Handle a Markdown cell.
         if cell_type == "markdown":
-            mdx += handle_markdown_cell(cell, img_folder, LIB_DIR)
+            mdx += handle_markdown_cell(cell, img_folder, path)
 
         # Handle a code cell.
         if cell_type == "code":
